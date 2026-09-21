@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>บันทึกผลติดตาม — DHome Valley</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  :root { --g:#06C755; --gd:#05a647; --bg:#f5f6f7; --card:#fff; --tx:#1c1c1e; --mu:#6b7280; --bd:#d9dde2; --err:#d93025; --warn:#b26a00; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"Sukhumvit Set","Noto Sans Thai",Tahoma,sans-serif; background:var(--bg); color:var(--tx);
+         padding:env(safe-area-inset-top,0) 0 calc(env(safe-area-inset-bottom,0) + 90px); }
+  header { background:var(--g); color:#fff; padding:14px 16px; }
+  header h1 { margin:0; font-size:18px; }
+  header small { opacity:.9; }
+  form { padding:12px; }
+  .card { background:var(--card); border-radius:12px; padding:14px; margin-bottom:12px; }
+  label { display:block; font-weight:600; font-size:15px; margin:0 0 6px; }
+  label .req { color:var(--err); }
+  .field { margin-bottom:14px; }
+  .field:last-child { margin-bottom:0; }
+  input, textarea { width:100%; font-size:16px; padding:11px 12px; border:1px solid var(--bd); border-radius:10px; background:#fff; color:var(--tx); }
+  textarea { min-height:64px; resize:vertical; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { border:1px solid var(--bd); background:#fff; border-radius:999px; padding:9px 13px; font-size:15px; cursor:pointer; user-select:none; }
+  .chip.on { background:var(--g); border-color:var(--g); color:#fff; }
+  .hint { color:var(--mu); font-size:13px; margin-top:4px; }
+  .bar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--bd);
+         padding:10px 12px calc(env(safe-area-inset-bottom,0) + 10px); }
+  button.main { width:100%; font-size:17px; font-weight:700; padding:14px; border:0; border-radius:12px; background:var(--g); color:#fff; }
+  button.main:disabled { background:#9ad9b3; }
+  button.sec { width:100%; font-size:16px; padding:12px; border:1px solid var(--bd); border-radius:12px; background:#fff; margin-top:8px; }
+  .msg { padding:12px 14px; border-radius:10px; margin:12px; font-size:15px; display:none; }
+  .msg.err { display:block; background:#fdecea; color:var(--err); }
+  .msg.warn { display:block; background:#fff4e0; color:var(--warn); }
+  .msg.ok { display:block; background:#e7f8ee; color:#0a7a3b; }
+  #loading { padding:40px 16px; text-align:center; color:var(--mu); }
+  #done { display:none; padding:30px 16px; text-align:center; }
+  #done .code { font-size:34px; font-weight:800; color:var(--g); margin:8px 0; }
+  .info { font-size:15px; line-height:1.6; }
+  .info b { font-size:18px; }
+  .info a { color:var(--g); font-weight:700; text-decoration:none; }
+  .prev { background:#f1f3f5; border-radius:10px; padding:10px 12px; font-size:14px; color:#444; margin-top:8px; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<header><h1>บันทึกผลติดตาม</h1><small id="who">กำลังเชื่อมต่อ LINE…</small></header>
+<div id="loading">กำลังโหลด…</div>
+<div id="msg" class="msg"></div>
+
+<form id="f" style="display:none" autocomplete="off">
+  <div class="card info" id="info"></div>
+  <div class="card">
+    <div class="field"><label>ผลการติดตาม <span class="req">*</span></label>
+      <textarea name="result" placeholder="เช่น โทรแล้ว สนใจแบบวายุ ขอคุยกับภรรยาก่อน"></textarea></div>
+    <div class="field"><label>สถานะลูกค้าตอนนี้</label><div class="chips" data-name="status" data-list="สถานะ"></div></div>
+    <div class="field" id="lostBox" style="display:none"><label>เหตุผลที่ไม่ซื้อ <span class="req">*</span></label><div class="chips" data-name="lostReason" data-list="เหตุผลไม่ซื้อ"></div></div>
+  </div>
+  <div class="card" id="nextCard">
+    <div class="field"><label>นัดครั้งถัดไป <span class="req">*</span></label>
+      <div class="chips" id="dateChips"></div>
+      <input type="date" id="nextDate" style="margin-top:8px;display:none">
+      <div class="hint" id="dateShow"></div></div>
+    <div class="field"><label>ครั้งหน้าต้องทำอะไร</label><div class="chips" data-name="nextAction" data-list="สิ่งที่ต้องทำ" data-default="โทรติดตาม"></div></div>
+  </div>
+</form>
+
+<div id="done"><div>บันทึกแล้ว ✅</div><div id="doneMsg" class="hint" style="margin-top:8px"></div>
+  <button class="main" id="close" style="margin-top:20px">ปิด</button></div>
+
+<div class="bar" id="bar" style="display:none"><button class="main" id="send" form="f" type="submit">บันทึก</button></div>
+
+<script>
+const LIFF_ID = '2011684957-MKTZIoo2';
+const API = 'https://script.google.com/macros/s/AKfycbyj6ZOt8QuMywuE-rAZzkQNVvnXHkQ2Ka-pyiIdGYivb-pmec1eX2YKANlKNMwLd02X/exec';
+
+const $ = s => document.querySelector(s);
+const state = {};
+let ROW = 0;
+const closing = () => /^[X7Z]/.test(state.status || '');
+
+function show(t, x) { const m = $('#msg'); m.className = 'msg ' + t; m.textContent = x; window.scrollTo(0, 0); }
+function ymd(d) { const z = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); }
+function thDate(s) { if (!s) return ''; const [y, m, d] = s.split('-'); return 'วันที่ ' + (+d) + '/' + (+m) + '/' + y; }
+function esc(s) { return String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function refresh() {
+  $('#lostBox').style.display = (state.status || '').startsWith('X') ? 'block' : 'none';
+  $('#nextCard').style.display = closing() ? 'none' : 'block';
+}
+function buildChips(el, items, preset) {
+  const name = el.dataset.name, def = preset || el.dataset.default;
+  el.innerHTML = '';
+  items.forEach(v => {
+    const c = document.createElement('div'); c.className = 'chip'; c.textContent = v;
+    c.onclick = () => { const on = c.classList.contains('on');
+      el.querySelectorAll('.chip').forEach(x => x.classList.remove('on'));
+      if (!on) { c.classList.add('on'); state[name] = v; } else delete state[name];
+      refresh(); };
+    if (def && v === def) { c.classList.add('on'); state[name] = v; }
+    el.appendChild(c);
+  });
+}
+function buildDates() {
+  const box = $('#dateChips'), inp = $('#nextDate');
+  [['พรุ่งนี้', 1], ['3 วัน', 3], ['1 สัปดาห์', 7], ['2 สัปดาห์', 14], ['1 เดือน', 30], ['เลือกวันที่', null]].forEach(([t, n]) => {
+    const c = document.createElement('div'); c.className = 'chip'; c.textContent = t;
+    c.onclick = () => {
+      box.querySelectorAll('.chip').forEach(x => x.classList.remove('on')); c.classList.add('on');
+      if (n === null) { inp.style.display = 'block'; inp.min = ymd(new Date()); state.nextDate = inp.value || ''; }
+      else { inp.style.display = 'none'; const d = new Date(); d.setDate(d.getDate() + n); state.nextDate = ymd(d); }
+      $('#dateShow').textContent = thDate(state.nextDate);
+    };
+    box.appendChild(c);
+  });
+  inp.onchange = () => { state.nextDate = inp.value; $('#dateShow').textContent = thDate(inp.value); };
+}
+async function post(body) {
+  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ idToken: liff.getIDToken() }, body)) });
+  return r.json();
+}
+
+async function start() {
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+    const tok = liff.getDecodedIDToken();
+    $('#who').textContent = 'ผู้บันทึก: ' + ((tok && tok.name) || '');
+    ROW = Number(new URLSearchParams(location.search).get('row'));
+    if (!ROW) throw new Error('ไม่มีข้อมูลงาน — เปิดจากการ์ดใน LINE');
+    const [lists, t] = await Promise.all([fetch(API).then(r => r.json()), post({ action: 'getTask', row: ROW })]);
+    if (!t.ok) throw new Error(t.msg || 'โหลดงานไม่ได้');
+    const k = t.task;
+    if (k.done) throw new Error('งานนี้บันทึกผลไปแล้ว');
+    const tel = /^0\d{8,9}$/.test(k.phone) ? '<a href="tel:' + k.phone + '">📞 ' + k.phone + '</a>' : esc(k.phone);
+    $('#info').innerHTML = '<b>' + esc(k.name) + '</b><br>' + esc(k.code) + ' · ' + tel +
+      '<br>ต้องทำ: ' + esc(k.action || '-') + ' · กำหนด ' + esc(thDate(k.due).replace('วันที่ ', '')) +
+      (k.prev ? '<div class="prev">ครั้งก่อน: ' + esc(k.prev) + '</div>' : '');
+    document.querySelectorAll('.chips[data-list]').forEach(el =>
+      buildChips(el, lists.lists[el.dataset.list] || [], el.dataset.name === 'status' ? k.status : null));
+    buildDates(); refresh();
+    $('#loading').style.display = 'none'; $('#f').style.display = 'block'; $('#bar').style.display = 'block';
+  } catch (e) {
+    $('#loading').style.display = 'none'; show('err', e.message);
+  }
+}
+
+$('#f').onsubmit = async ev => {
+  ev.preventDefault(); $('#msg').className = 'msg';
+  const result = ev.target.elements['result'].value.trim();
+  const miss = [];
+  if (!result) miss.push('ผลการติดตาม');
+  if ((state.status || '').startsWith('X') && !state.lostReason) miss.push('เหตุผลที่ไม่ซื้อ');
+  if (!closing() && !state.nextDate) miss.push('นัดครั้งถัดไป');
+  if (miss.length) { show('err', 'ยังไม่ได้กรอก: ' + miss.join(', ')); return; }
+  const btn = $('#send'); btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
+  try {
+    const j = await post({ action: 'saveFollowup', row: ROW, data: { result, status: state.status || '', lostReason: state.lostReason || '',
+      nextDate: closing() ? '' : state.nextDate, nextAction: state.nextAction || 'โทรติดตาม' } });
+    if (j.ok) {
+      $('#f').style.display = 'none'; $('#bar').style.display = 'none';
+      $('#doneMsg').textContent = j.msg; $('#done').style.display = 'block'; window.scrollTo(0, 0); return;
+    }
+    show('err', j.msg || 'บันทึกไม่สำเร็จ');
+  } catch (e) { show('err', 'ส่งข้อมูลไม่ได้ ลองใหม่ (' + e.message + ')'); }
+  btn.disabled = false; btn.textContent = 'บันทึก';
+};
+$('#close').onclick = () => { if (liff.isInClient()) liff.closeWindow(); else window.close(); };
+start();
+</script>
+</body>
+</html>
